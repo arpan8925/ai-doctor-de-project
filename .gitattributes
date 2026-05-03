@@ -1,0 +1,15 @@
+# Normalize line endings to LF in the index. Working-tree checkout follows the
+# host OS (CRLF on Windows, LF elsewhere) — matches what every editor expects
+# and silences the "LF will be replaced by CRLF" warnings on `git add`.
+* text=auto eol=lf
+
+# Binary files — never touch.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.svg   text
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.lock  -text
