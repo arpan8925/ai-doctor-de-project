@@ -112,6 +112,7 @@ def narrow(state) -> dict[str, Any] | None:  # noqa: ANN001
     try:
         resp = router.reason([{"role": "user", "content": prompt}])
         text = resp.choices[0].message.content
+        state.cost_usd += router.response_cost_usd(resp)
     except Exception as e:  # noqa: BLE001
         log.warning("Narrowing LLM call failed: %s", e)
         return None

@@ -102,16 +102,29 @@ export function TopBar({
 
 // ────────────────────────────── Sidebar ─────────────────────────────
 
-const NAV = [
+import { Wallet as WalletIcon, ShieldCheck as ShieldIcon } from "./icons";
+
+export type Page = "chat" | "wallet" | "admin";
+
+const STATIC_NAV = [
   { id: "home", label: "Home", icon: Home },
-  { id: "consult", label: "New consult", icon: MessageSquare, active: true },
   { id: "reports", label: "Reports", icon: FileText },
   { id: "vitals", label: "Vitals", icon: Activity },
   { id: "history", label: "History", icon: Calendar },
   { id: "guidelines", label: "Guidelines", icon: ClipboardList },
 ];
 
-export function Sidebar({ onNew }: { onNew: () => void }) {
+export function Sidebar({
+  onNew,
+  page = "chat",
+  onNavigate,
+  isAdmin = false,
+}: {
+  onNew: () => void;
+  page?: Page;
+  onNavigate?: (page: Page) => void;
+  isAdmin?: boolean;
+}) {
   return (
     <aside className="sidebar">
       <button className="new-consult" onClick={onNew}>
@@ -120,13 +133,38 @@ export function Sidebar({ onNew }: { onNew: () => void }) {
       </button>
 
       <nav className="nav">
-        {NAV.map((n) => {
+        <button
+          className={`nav-item ${page === "chat" ? "active" : ""}`}
+          onClick={() => onNavigate?.("chat")}
+        >
+          <MessageSquare width={16} height={16} />
+          <span>Consult</span>
+          {page === "chat" && <ChevronRight width={14} height={14} className="nav-caret" />}
+        </button>
+        <button
+          className={`nav-item ${page === "wallet" ? "active" : ""}`}
+          onClick={() => onNavigate?.("wallet")}
+        >
+          <WalletIcon width={16} height={16} />
+          <span>Wallet</span>
+          {page === "wallet" && <ChevronRight width={14} height={14} className="nav-caret" />}
+        </button>
+        {isAdmin && (
+          <button
+            className={`nav-item ${page === "admin" ? "active" : ""}`}
+            onClick={() => onNavigate?.("admin")}
+          >
+            <ShieldIcon width={16} height={16} />
+            <span>Admin</span>
+            {page === "admin" && <ChevronRight width={14} height={14} className="nav-caret" />}
+          </button>
+        )}
+        {STATIC_NAV.map((n) => {
           const Icon = n.icon;
           return (
-            <button key={n.id} className={`nav-item ${n.active ? "active" : ""}`}>
+            <button key={n.id} className="nav-item" disabled>
               <Icon width={16} height={16} />
               <span>{n.label}</span>
-              {n.active && <ChevronRight width={14} height={14} className="nav-caret" />}
             </button>
           );
         })}

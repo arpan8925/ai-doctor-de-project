@@ -32,6 +32,13 @@ class Settings(BaseSettings):
         description="Path to Firebase service account JSON",
     )
 
+    inr_per_usd: float = Field(
+        default=83.0,
+        description="USD→INR rate used to bill LLM usage costs to user wallets.",
+    )
+    topup_min_paise: int = Field(default=1000, description="Minimum top-up = ₹10")
+    topup_max_paise: int = Field(default=10_00_000, description="Maximum top-up = ₹10,000")
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

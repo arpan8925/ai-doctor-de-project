@@ -14,11 +14,29 @@ to any LiteLLM-supported model without touching feature code.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Iterable
 
 import litellm
 
 from apps.api.config import get_settings
+
+log = logging.getLogger(__name__)
+
+
+def response_cost_usd(response: Any) -> float:
+    """Best-effort per-response USD cost from a LiteLLM response object.
+
+    Returns 0.0 if the model is unknown to LiteLLM's pricing table or the
+    response shape is unexpected — never raises (billing must never break
+    a chat turn).
+    """
+    try:
+        cost = litellm.completion_cost(completion_response=response)
+        return float(cost) if cost else 0.0
+    except Exception as e:  # noqa: BLE001
+        log.debug("completion_cost failed: %s", e)
+        return 0.0
 
 
 def reason(

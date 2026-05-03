@@ -7,6 +7,8 @@ export type Profile = {
   age: number;
   sex: "M" | "F" | "O";
   allergies: string[];
+  balance_paise?: number;
+  role?: "user" | "admin";
 };
 
 export function useProfile(getToken: () => Promise<string>) {

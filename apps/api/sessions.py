@@ -40,6 +40,8 @@ def _state_to_doc(state: PdnState, uid: str) -> dict[str, Any]:
         "red_flag_active": state.red_flag_active,
         "red_flag_rule": rule_data,
         "lab_reports_received": state.lab_reports_received,
+        "cost_usd": state.cost_usd,
+        "ended": state.ended,
     }
 
 
@@ -57,6 +59,8 @@ def _doc_to_state(doc: dict[str, Any]) -> PdnState:
         red_flag_active=bool(doc.get("red_flag_active", False)),
         red_flag_rule=rule,
         lab_reports_received=int(doc.get("lab_reports_received", 0)),
+        cost_usd=float(doc.get("cost_usd", 0.0)),
+        ended=bool(doc.get("ended", False)),
     )
 
 

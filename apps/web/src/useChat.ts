@@ -3,9 +3,6 @@ import type { ChatResponse, DifferentialItem, Message, Attachment, RedFlag } fro
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "http://localhost:8000";
 
-// Cheap client-side preview while waiting for the server's authoritative
-// detection. The server's regex set is stricter and includes negation
-// handling, so it overrides this on every response.
 const CLIENT_RED_FLAGS = [
   /chest\s+pain.*\b(arm|jaw|sweat)/i,
   /sudden\s+severe\s+headache|worst\s+headache\s+of\s+my\s+life/i,
@@ -41,16 +38,27 @@ export function useChat(getToken: () => Promise<string>) {
   const [error, setError] = useState<string | null>(null);
   const [redFlag, setRedFlag] = useState<RedFlag | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [costUsd, setCostUsd] = useState(0);
+  const [settled, setSettled] = useState(false);
+  const [topupRequired, setTopupRequired] = useState(false);
 
   const initialized = useRef(false);
 
   const startSession = useCallback(async () => {
+    setError(null);
+    setSettled(false);
+    setCostUsd(0);
+    setTopupRequired(false);
     try {
       const token = await getToken();
       const r = await fetch(`${API_BASE}/sessions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (r.status === 402) {
+        setTopupRequired(true);
+        return;
+      }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       setSessionId(d.session_id);
@@ -99,10 +107,12 @@ export function useChat(getToken: () => Promise<string>) {
           const body = await res.text();
           throw new Error(`HTTP ${res.status}: ${body.slice(0, 220)}`);
         }
-        const data: ChatResponse = await res.json();
+        const data: ChatResponse & { cost_usd?: number; settled?: boolean } = await res.json();
         setScore(data.score);
         setAction(data.action);
         setDifferential(data.differential ?? []);
+        if (typeof data.cost_usd === "number") setCostUsd(data.cost_usd);
+        if (data.settled) setSettled(true);
         if (data.red_flag) {
           setRedFlag(data.red_flag);
         } else if (redFlag?.rule_id === "client-preview") {
@@ -124,6 +134,21 @@ export function useChat(getToken: () => Promise<string>) {
     [sessionId, pendingAttachments, redFlag, getToken],
   );
 
+  const endSession = useCallback(async () => {
+    if (!sessionId || settled) return;
+    try {
+      const token = await getToken();
+      const r = await fetch(`${API_BASE}/sessions/${sessionId}/end`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setSettled(true);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to end session");
+    }
+  }, [sessionId, settled, getToken]);
+
   const attachFile = useCallback((files: FileList | null) => {
     if (!files) return;
     const next: Attachment[] = Array.from(files).map((f) => ({
@@ -139,7 +164,17 @@ export function useChat(getToken: () => Promise<string>) {
     setPendingAttachments((cur) => cur.filter((a) => a.id !== id));
   }, []);
 
-  const reset = useCallback(() => {
+  const reset = useCallback(async () => {
+    // Settle current session before tearing down (idempotent on backend).
+    if (sessionId && !settled) {
+      try {
+        const token = await getToken();
+        await fetch(`${API_BASE}/sessions/${sessionId}/end`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch { /* swallow — we're navigating away anyway */ }
+    }
     setMessages([]);
     setScore(0);
     setAction("ask");
@@ -148,9 +183,11 @@ export function useChat(getToken: () => Promise<string>) {
     setRedFlag(null);
     setPendingAttachments([]);
     setSessionId(null);
+    setSettled(false);
+    setCostUsd(0);
     initialized.current = false;
     startSession();
-  }, [startSession]);
+  }, [sessionId, settled, getToken, startSession]);
 
   return {
     apiBase: API_BASE,
@@ -163,10 +200,14 @@ export function useChat(getToken: () => Promise<string>) {
     error,
     redFlag,
     pendingAttachments,
+    costUsd,
+    settled,
+    topupRequired,
     send,
     attachFile,
     removeAttachment,
     dismissRedFlag: () => setRedFlag(null),
     reset,
+    endSession,
   };
 }

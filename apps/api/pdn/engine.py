@@ -58,6 +58,8 @@ class PdnState:
     red_flag_active: bool = False
     red_flag_rule: RedFlagRule | None = None
     lab_reports_received: int = 0
+    cost_usd: float = 0.0  # accumulated LiteLLM cost across all turns
+    ended: bool = False  # True once the wallet has been settled for this session
 
     def _user_turns(self) -> int:
         return sum(1 for m in self.transcript if m.get("role") == "user")
@@ -185,6 +187,7 @@ def step(state: PdnState, user_message: str) -> dict[str, Any]:
     # 3. Generate the assistant reply via Gemini.
     response = router.reason(_messages_with_system(state.transcript))
     ui_payload = response.choices[0].message.content
+    state.cost_usd += router.response_cost_usd(response)
     state.transcript.append({"role": "assistant", "content": ui_payload})
     return _build_response(state, ui_payload)
 
