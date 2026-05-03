@@ -39,3 +39,6 @@ data/models/
 .idea/
 .DS_Store
 Thumbs.db
+
+# --- local planning notes (not for the repo) ---
+Plan/
