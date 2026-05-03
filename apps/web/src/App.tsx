@@ -116,11 +116,7 @@ function AuthenticatedApp({
   const { profile, loading, saveProfile } = useProfile(getToken);
 
   if (loading) {
-    return (
-      <div className="login-root">
-        <div className="login-loading">Loading your profile…</div>
-      </div>
-    );
+    return <div className="auth-loading-shell">Loading your profile…</div>;
   }
 
   if (!profile) {
@@ -134,11 +130,7 @@ export default function App() {
   const { user, loading, step, error, busy, sendOtp, verifyOtp, getToken, signOut } = useAuth();
 
   if (loading) {
-    return (
-      <div className="login-root">
-        <div className="login-loading">Loading…</div>
-      </div>
-    );
+    return <div className="auth-loading-shell">Loading…</div>;
   }
 
   if (!user) {
