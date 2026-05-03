@@ -1,0 +1,40 @@
+# --- secrets ---
+.env
+.env.local
+*.env.local
+
+# --- python / uv ---
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# --- node / vite ---
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+
+# --- playwright ---
+apps/web/test-results/
+apps/web/playwright-report/
+
+# --- data / models / ml caches ---
+data/chroma/
+data/models/
+*.sqlite
+*.sqlite3
+# Keep the MedlinePlus cache (~500 KB JSON) so future devs don't burn 1500
+# Connect-API calls. Re-downloaded if missing via `uv run python -m apps.api.rag.seed`.
+!data/seed/medlineplus_cache.json
+
+# --- editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
