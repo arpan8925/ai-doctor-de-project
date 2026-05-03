@@ -31,7 +31,7 @@ function clientPreviewFlag(text: string): RedFlag | null {
 
 const newId = () => Math.random().toString(36).slice(2, 9);
 
-export function useChat() {
+export function useChat(getToken: () => Promise<string>) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [score, setScore] = useState(0);
@@ -44,14 +44,27 @@ export function useChat() {
 
   const initialized = useRef(false);
 
+  const startSession = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const r = await fetch(`${API_BASE}/sessions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      setSessionId(d.session_id);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Backend unreachable at ${API_BASE}: ${msg}`);
+    }
+  }, [getToken]);
+
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-    fetch(`${API_BASE}/sessions`, { method: "POST" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d) => setSessionId(d.session_id))
-      .catch((e) => setError(`Backend unreachable at ${API_BASE}: ${e.message}`));
-  }, []);
+    startSession();
+  }, [startSession]);
 
   const send = useCallback(
     async (text: string) => {
@@ -73,9 +86,13 @@ export function useChat() {
       setError(null);
 
       try {
+        const token = await getToken();
         const res = await fetch(`${API_BASE}/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ session_id: sessionId, message: trimmed }),
         });
         if (!res.ok) {
@@ -86,11 +103,9 @@ export function useChat() {
         setScore(data.score);
         setAction(data.action);
         setDifferential(data.differential ?? []);
-        // Server-side detection is authoritative — overrides the client preview.
         if (data.red_flag) {
           setRedFlag(data.red_flag);
         } else if (redFlag?.rule_id === "client-preview") {
-          // Client preview fired but server didn't confirm → false positive.
           setRedFlag(null);
         }
         const aiMsg: Message = {
@@ -100,13 +115,13 @@ export function useChat() {
           timestamp: Date.now(),
         };
         setMessages((m) => [...m, aiMsg]);
-      } catch (e: any) {
-        setError(e.message);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
       } finally {
         setBusy(false);
       }
     },
-    [sessionId, pendingAttachments, redFlag],
+    [sessionId, pendingAttachments, redFlag, getToken],
   );
 
   const attachFile = useCallback((files: FileList | null) => {
@@ -132,7 +147,10 @@ export function useChat() {
     setError(null);
     setRedFlag(null);
     setPendingAttachments([]);
-  }, []);
+    setSessionId(null);
+    initialized.current = false;
+    startSession();
+  }, [startSession]);
 
   return {
     apiBase: API_BASE,

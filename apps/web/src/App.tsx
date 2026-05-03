@@ -10,15 +10,16 @@ import {
   Sidebar,
   TopBar,
 } from "./components";
+import { LoginScreen } from "./LoginScreen";
+import { useAuth } from "./useAuth";
 import { useChat } from "./useChat";
 
-export default function App() {
-  const chat = useChat();
+function ChatApp({ getToken, onSignOut }: { getToken: () => Promise<string>; onSignOut: () => void }) {
+  const chat = useChat(getToken);
   const [seed, setSeed] = useState("");
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
-  // Track whether the user is at the bottom — only auto-scroll if so.
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
@@ -42,6 +43,7 @@ export default function App() {
         apiBase={chat.apiBase}
         busy={chat.busy}
         online={chat.sessionId !== null}
+        onSignOut={onSignOut}
       />
 
       <main className="main">
@@ -99,4 +101,30 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+export default function App() {
+  const { user, loading, step, error, busy, sendOtp, verifyOtp, getToken, signOut } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="login-root">
+        <div className="login-loading">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <LoginScreen
+        step={step}
+        busy={busy}
+        error={error}
+        onSendOtp={sendOtp}
+        onVerifyOtp={verifyOtp}
+      />
+    );
+  }
+
+  return <ChatApp getToken={getToken} onSignOut={signOut} />;
 }

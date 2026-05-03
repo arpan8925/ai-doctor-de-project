@@ -8,15 +8,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import litellm
 
+from apps.api.auth import get_current_uid
 from apps.api.config import get_settings
 from apps.api.pdn.engine import step
-from apps.api.sessions import create_session, get_session
+from apps.api.sessions import create_session, get_session, save_session
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, debug=settings.debug)
@@ -44,8 +45,8 @@ class StartSessionResponse(BaseModel):
 
 
 @app.post("/sessions", response_model=StartSessionResponse)
-def start_session() -> StartSessionResponse:
-    state = create_session()
+def start_session(uid: str = Depends(get_current_uid)) -> StartSessionResponse:
+    state = create_session(uid)
     return StartSessionResponse(session_id=state.session_id)
 
 
@@ -76,12 +77,13 @@ class ChatResponse(BaseModel):
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest) -> ChatResponse:
-    state = get_session(req.session_id)
+def chat(req: ChatRequest, uid: str = Depends(get_current_uid)) -> ChatResponse:
+    state = get_session(req.session_id, uid)
     if state is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
     try:
         result = step(state, req.message)
+        save_session(state, uid)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except litellm.AuthenticationError as e:

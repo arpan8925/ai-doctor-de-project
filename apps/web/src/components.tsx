@@ -45,10 +45,12 @@ export function TopBar({
   apiBase,
   busy,
   online,
+  onSignOut,
 }: {
   apiBase: string;
   busy: boolean;
   online: boolean;
+  onSignOut?: () => void;
 }) {
   const [locale, setLocale] = useState("EN");
   return (
@@ -89,7 +91,7 @@ export function TopBar({
           <span className="badge">2</span>
         </button>
 
-        <button className="profile" title={MOCK_PATIENT.name}>
+        <button className="profile" title={MOCK_PATIENT.name} onClick={onSignOut}>
           <span className="avatar">{MOCK_PATIENT.name.charAt(0)}</span>
           <span className="profile-name">{MOCK_PATIENT.name.split(" ")[0]}</span>
         </button>

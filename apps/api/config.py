@@ -27,6 +27,11 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
     )
 
+    firebase_service_account: Path = Field(
+        default_factory=lambda: ROOT_DIR / "apps" / "api" / "firebase-service-account.json",
+        description="Path to Firebase service account JSON",
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
