@@ -11,8 +11,10 @@ import {
   TopBar,
 } from "./components";
 import { LoginScreen } from "./LoginScreen";
+import { SetupWizard } from "./SetupWizard";
 import { useAuth } from "./useAuth";
 import { useChat } from "./useChat";
+import { useProfile } from "./useProfile";
 
 function ChatApp({ getToken, onSignOut }: { getToken: () => Promise<string>; onSignOut: () => void }) {
   const chat = useChat(getToken);
@@ -103,6 +105,31 @@ function ChatApp({ getToken, onSignOut }: { getToken: () => Promise<string>; onS
   );
 }
 
+// Mounted only when the user is authenticated — safe to call useProfile unconditionally.
+function AuthenticatedApp({
+  getToken,
+  onSignOut,
+}: {
+  getToken: () => Promise<string>;
+  onSignOut: () => void;
+}) {
+  const { profile, loading, saveProfile } = useProfile(getToken);
+
+  if (loading) {
+    return (
+      <div className="login-root">
+        <div className="login-loading">Loading your profile…</div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return <SetupWizard onComplete={saveProfile} />;
+  }
+
+  return <ChatApp getToken={getToken} onSignOut={onSignOut} />;
+}
+
 export default function App() {
   const { user, loading, step, error, busy, sendOtp, verifyOtp, getToken, signOut } = useAuth();
 
@@ -126,5 +153,5 @@ export default function App() {
     );
   }
 
-  return <ChatApp getToken={getToken} onSignOut={signOut} />;
+  return <AuthenticatedApp getToken={getToken} onSignOut={signOut} />;
 }

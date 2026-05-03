@@ -17,6 +17,7 @@ import litellm
 from apps.api.auth import get_current_uid
 from apps.api.config import get_settings
 from apps.api.pdn.engine import step
+from apps.api.profile import ProfileIn, ProfileOut, get_profile, save_profile
 from apps.api.sessions import create_session, get_session, save_session
 
 settings = get_settings()
@@ -38,6 +39,20 @@ def health() -> dict[str, Any]:
         "app": settings.app_name,
         "gemini_configured": bool(settings.gemini_api_key),
     }
+
+
+@app.get("/me", response_model=ProfileOut)
+def get_me(uid: str = Depends(get_current_uid)) -> ProfileOut:
+    data = get_profile(uid)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return ProfileOut(**data)
+
+
+@app.post("/me", response_model=ProfileOut)
+def save_me(body: ProfileIn, uid: str = Depends(get_current_uid)) -> ProfileOut:
+    save_profile(uid, body.model_dump())
+    return ProfileOut(uid=uid, **body.model_dump())
 
 
 class StartSessionResponse(BaseModel):
