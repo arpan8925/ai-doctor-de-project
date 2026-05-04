@@ -1,11 +1,11 @@
 import { useState } from "react";
-import type { Transaction } from "./useWallet";
-import { formatPaise, formatTxnDate, useWallet } from "./useWallet";
+import type { Transaction, UseWalletResult } from "./useWallet";
+import { formatPaise, formatTxnDate } from "./useWallet";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 2000];
 
-export function Wallet({ getToken }: { getToken: () => Promise<string> }) {
-  const { state, loading, error, requestTopup } = useWallet(getToken);
+export function Wallet({ wallet }: { wallet: UseWalletResult }) {
+  const { state, loading, error, requestTopup } = wallet;
   const [amount, setAmount] = useState<number>(500);
   const [custom, setCustom] = useState<string>("");
   const [busy, setBusy] = useState(false);

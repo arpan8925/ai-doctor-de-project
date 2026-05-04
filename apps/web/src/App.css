@@ -149,6 +149,21 @@ input, textarea, select, button { font-family: inherit; color: inherit; }
   color: var(--text-muted);
 }
 .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+.wallet-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 13px; font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.wallet-badge:hover:not(:disabled) { border-color: var(--border-strong); }
+.wallet-badge:disabled { cursor: default; opacity: 0.7; }
+.wallet-badge.negative { color: var(--danger); border-color: var(--danger); }
+.wallet-amount { font-variant-numeric: tabular-nums; }
 .badge {
   position: absolute; top: -4px; right: -4px;
   background: var(--danger); color: #fff;

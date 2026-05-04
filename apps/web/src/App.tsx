@@ -18,7 +18,7 @@ import { Wallet } from "./Wallet";
 import { useAuth } from "./useAuth";
 import { useChat } from "./useChat";
 import { useProfile, type Profile } from "./useProfile";
-import { formatPaise } from "./useWallet";
+import { formatPaise, useWallet, type UseWalletResult } from "./useWallet";
 
 function ChatPage({
   getToken,
@@ -28,6 +28,7 @@ function ChatPage({
   isAdmin,
   profile,
   userPhone,
+  wallet,
 }: {
   getToken: () => Promise<string>;
   page: Page;
@@ -36,6 +37,7 @@ function ChatPage({
   isAdmin: boolean;
   profile: Profile;
   userPhone: string | null;
+  wallet: UseWalletResult;
 }) {
   const chat = useChat(getToken);
   const [seed, setSeed] = useState("");
@@ -68,6 +70,9 @@ function ChatPage({
         onSignOut={onSignOut}
         userName={profile.name}
         userPhone={userPhone}
+        walletBalancePaise={wallet.state?.balance_paise ?? null}
+        walletLoading={wallet.loading}
+        onWalletClick={() => onNavigate("wallet")}
       />
 
       <main className="main">
@@ -181,6 +186,7 @@ function AppShell({
 }) {
   const [page, setPage] = useState<Page>("chat");
   const isAdmin = profile.role === "admin";
+  const wallet = useWallet(getToken);
 
   // Force non-admins off /admin if they somehow land there.
   useEffect(() => {
@@ -196,8 +202,9 @@ function AppShell({
         onSignOut={onSignOut}
         userName={profile.name}
         userPhone={userPhone}
+        wallet={wallet}
       >
-        <Wallet getToken={getToken} />
+        <Wallet wallet={wallet} />
       </PageShell>
     );
   }
@@ -210,6 +217,7 @@ function AppShell({
         onSignOut={onSignOut}
         userName={profile.name}
         userPhone={userPhone}
+        wallet={wallet}
       >
         <AdminPanel getToken={getToken} />
       </PageShell>
@@ -224,6 +232,7 @@ function AppShell({
       isAdmin={isAdmin}
       profile={profile}
       userPhone={userPhone}
+      wallet={wallet}
     />
   );
 }
@@ -235,6 +244,7 @@ function PageShell({
   onSignOut,
   userName,
   userPhone,
+  wallet,
   children,
 }: {
   page: Page;
@@ -243,11 +253,22 @@ function PageShell({
   onSignOut: () => void;
   userName?: string;
   userPhone?: string | null;
+  wallet?: UseWalletResult;
   children: React.ReactNode;
 }) {
   return (
     <div className="app">
-      <TopBar apiBase="" busy={false} online onSignOut={onSignOut} userName={userName} userPhone={userPhone} />
+      <TopBar
+        apiBase=""
+        busy={false}
+        online
+        onSignOut={onSignOut}
+        userName={userName}
+        userPhone={userPhone}
+        walletBalancePaise={wallet?.state?.balance_paise ?? null}
+        walletLoading={wallet?.loading}
+        onWalletClick={page === "wallet" ? undefined : () => onNavigate("wallet")}
+      />
       <main className="main">
         <Sidebar
           onNew={() => onNavigate("chat")}

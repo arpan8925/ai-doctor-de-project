@@ -75,6 +75,8 @@ export function useWallet(getToken: () => Promise<string>) {
   return { state, loading, error, refresh, requestTopup };
 }
 
+export type UseWalletResult = ReturnType<typeof useWallet>;
+
 // Pure helpers — co-located so any view that imports a Transaction can format it.
 export function formatPaise(paise: number): string {
   const sign = paise < 0 ? "-" : "";

@@ -15,16 +15,17 @@ import {
   MessageSquare,
   Mic,
   Paperclip,
-  Pill,
   Plus,
   Search,
   Send,
   Settings,
   ShieldCheck,
   Stethoscope,
+  Wallet as WalletGlyph,
   X,
   Zap,
 } from "./icons";
+import { formatPaise } from "./useWallet";
 import {
   ClarificationGauge,
   DifferentialDonut,
@@ -52,6 +53,9 @@ export function TopBar({
   onSignOut,
   userName,
   userPhone,
+  walletBalancePaise,
+  walletLoading,
+  onWalletClick,
 }: {
   apiBase: string;
   busy: boolean;
@@ -59,6 +63,9 @@ export function TopBar({
   onSignOut?: () => void;
   userName?: string;
   userPhone?: string | null;
+  walletBalancePaise?: number | null;
+  walletLoading?: boolean;
+  onWalletClick?: () => void;
 }) {
   const [locale, setLocale] = useState("EN");
   return (
@@ -98,6 +105,22 @@ export function TopBar({
           <Bell width={16} height={16} />
           <span className="badge">2</span>
         </button>
+
+        {(walletBalancePaise !== undefined && walletBalancePaise !== null) || walletLoading ? (
+          <button
+            className={`wallet-badge ${
+              typeof walletBalancePaise === "number" && walletBalancePaise < 0 ? "negative" : ""
+            }`}
+            onClick={onWalletClick}
+            title="Open wallet"
+            disabled={!onWalletClick}
+          >
+            <WalletGlyph width={14} height={14} />
+            <span className="wallet-amount">
+              {walletLoading || walletBalancePaise == null ? "—" : formatPaise(walletBalancePaise)}
+            </span>
+          </button>
+        ) : null}
 
         <div
           className="profile"
@@ -497,10 +520,6 @@ export function RightRail({
           ))}
         </div>
       </Card>
-
-      <Card title="Engine" subtitle="LLM + RAG stack" icon={<Pill width={14} height={14} />}>
-        <ModeCard />
-      </Card>
     </aside>
   );
 }
@@ -573,15 +592,3 @@ function PatientCard({
   );
 }
 
-function ModeCard() {
-  return (
-    <div className="mode mode-ok">
-      <strong>Gemini 2.0 Flash · LiteLLM</strong>
-      <span>
-        Each turn the model generates the next follow-up question and re-scores
-        the differential against new evidence. Retrieval is cosine search over
-        a 1,643-record ICD-10 + MedlinePlus index.
-      </span>
-    </div>
-  );
-}
