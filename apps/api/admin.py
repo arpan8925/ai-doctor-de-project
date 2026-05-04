@@ -71,27 +71,34 @@ async def require_admin(uid: str = Depends(get_current_uid)) -> str:
     return uid
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 def list_pending_topups(limit: int = 100) -> list[dict[str, Any]]:
-    """All pending credit transactions across all users — newest first."""
-    q = (
-        _db()
-        .collection("transactions")
-        .where("type", "==", "credit")
-        .where("status", "==", "pending")
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
-        .limit(limit)
-    )
+    """All pending credit transactions across all users — newest first.
+
+    Single `where(status==pending)` + Python-side filter on `type` and
+    sort on `created_at` — avoids requiring a composite Firestore index.
+    Pending top-ups are bounded (admin clears the queue), so the working
+    set stays small.
+    """
+    db = _db()
+    q = db.collection("transactions").where("status", "==", "pending")
+
     out = []
     for doc in q.stream():
         data = doc.to_dict()
+        if data.get("type") != "credit":
+            continue
         data["id"] = doc.id
-        # Decorate with the requesting user's phone (helpful in admin UI).
-        user_snap = _db().collection("users").document(data["uid"]).get()
+        # Decorate with the requesting user's name (helpful in admin UI).
+        user_snap = db.collection("users").document(data["uid"]).get()
         if user_snap.exists:
-            udata = user_snap.to_dict()
-            data["user_name"] = udata.get("name", "Unknown")
-        out.append(_serialize_txn(data))
-    return out
+            data["user_name"] = (user_snap.to_dict() or {}).get("name", "Unknown")
+        out.append(data)
+
+    out.sort(key=lambda d: d.get("created_at") or _EPOCH, reverse=True)
+    return [_serialize_txn(d) for d in out[:limit]]
 
 
 def approve_topup(txn_id: str, admin_uid: str) -> dict[str, Any]:

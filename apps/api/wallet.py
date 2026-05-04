@@ -47,21 +47,20 @@ def get_balance(uid: str) -> int:
     return int(snap.to_dict().get("balance_paise", 0))
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 def list_transactions(uid: str, limit: int = 25) -> list[dict[str, Any]]:
-    """Most recent transactions first."""
-    q = (
-        _db()
-        .collection("transactions")
-        .where("uid", "==", uid)
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
-        .limit(limit)
-    )
-    out = []
-    for doc in q.stream():
-        data = doc.to_dict()
-        data["id"] = doc.id
-        out.append(_serialize_txn(data))
-    return out
+    """Most recent transactions first.
+
+    No `order_by` here — combining where + order_by would require a
+    composite Firestore index. For a single user's history (small N)
+    we sort in Python instead.
+    """
+    q = _db().collection("transactions").where("uid", "==", uid)
+    docs = [{**doc.to_dict(), "id": doc.id} for doc in q.stream()]
+    docs.sort(key=lambda d: d.get("created_at") or _EPOCH, reverse=True)
+    return [_serialize_txn(d) for d in docs[:limit]]
 
 
 def _serialize_txn(data: dict[str, Any]) -> dict[str, Any]:
