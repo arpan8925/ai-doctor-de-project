@@ -5,6 +5,7 @@ import {
   Bell,
   Brain,
   Calendar,
+  Check,
   ChevronRight,
   ClipboardList,
   FileText,
@@ -21,6 +22,7 @@ import {
   Settings,
   ShieldCheck,
   Stethoscope,
+  Trash,
   Wallet as WalletGlyph,
   X,
   Zap,
@@ -34,11 +36,10 @@ import {
 } from "./charts";
 import {
   BODY_REGIONS,
-  MOCK_RECENT_SESSIONS,
   MOCK_VITALS,
   QUICK_SYMPTOM_CHIPS,
 } from "./mock";
-import type { Attachment, DifferentialItem, Message, RedFlag } from "./types";
+import type { Attachment, DifferentialItem, Message, RecentSession, RedFlag } from "./types";
 import type { Profile } from "./useProfile";
 
 const initial = (s: string | undefined | null) => (s && s.trim() ? s.trim().charAt(0).toUpperCase() : "U");
@@ -162,11 +163,23 @@ export function Sidebar({
   page = "chat",
   onNavigate,
   isAdmin = false,
+  sessions,
+  sessionsLoading = false,
+  onPickSession,
+  onCloseSession,
+  onDeleteSession,
+  activeSessionId,
 }: {
   onNew: () => void;
   page?: Page;
   onNavigate?: (page: Page) => void;
   isAdmin?: boolean;
+  sessions: RecentSession[];
+  sessionsLoading?: boolean;
+  onPickSession?: (id: string) => void;
+  onCloseSession?: (id: string) => void;
+  onDeleteSession?: (id: string) => void;
+  activeSessionId?: string | null;
 }) {
   return (
     <aside className="sidebar">
@@ -215,23 +228,67 @@ export function Sidebar({
 
       <div className="recent">
         <div className="section-title">Recent</div>
+        {sessionsLoading && sessions.length === 0 ? (
+          <div className="recent-empty">Loading…</div>
+        ) : sessions.length === 0 ? (
+          <div className="recent-empty">No consults yet. Start one above.</div>
+        ) : (
         <ul className="recent-list">
-          {MOCK_RECENT_SESSIONS.map((s) => (
-            <li key={s.id} className={`recent-item status-${s.status}`}>
+          {sessions.map((s) => (
+            <li
+              key={s.id}
+              className={`recent-item status-${s.status} ${
+                activeSessionId === s.id ? "is-active" : ""
+              } ${onPickSession ? "is-clickable" : ""}`}
+              onClick={onPickSession ? () => onPickSession(s.id) : undefined}
+              role={onPickSession ? "button" : undefined}
+              tabIndex={onPickSession ? 0 : undefined}
+            >
               <div className="recent-line">
-                <strong>{s.patientName}</strong>
+                <strong title={s.title}>{s.title}</strong>
                 <span className="recent-status">
                   {s.status === "active" ? "active" : s.status === "awaiting_labs" ? "labs" : "done"}
                 </span>
               </div>
-              <div className="recent-dx">{s.topDiagnosis}</div>
               <div className="recent-foot">
-                <span>{relTime(s.startedAt)}</span>
+                <span>{relTime(s.updated_at ?? s.created_at)}</span>
                 <span className="recent-score">{s.score}/100</span>
+                <span className="recent-actions">
+                  {s.status !== "closed" && onCloseSession && (
+                    <button
+                      type="button"
+                      className="recent-action close"
+                      title="Close & pay"
+                      aria-label="Close session"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseSession(s.id);
+                      }}
+                    >
+                      <Check width={12} height={12} />
+                    </button>
+                  )}
+                  {onDeleteSession && (
+                    <button
+                      type="button"
+                      className="recent-action delete"
+                      title={s.status === "closed" ? "Delete session" : "Close it first, then delete"}
+                      aria-label="Delete session"
+                      disabled={s.status !== "closed"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(s.id);
+                      }}
+                    >
+                      <Trash width={12} height={12} />
+                    </button>
+                  )}
+                </span>
               </div>
             </li>
           ))}
         </ul>
+        )}
       </div>
 
       <button className="settings-btn">
@@ -242,9 +299,13 @@ export function Sidebar({
   );
 }
 
-function relTime(ts: number) {
-  const diff = Date.now() - ts;
+function relTime(ts: number | string | null | undefined) {
+  if (ts == null) return "—";
+  const ms = typeof ts === "number" ? ts : Date.parse(ts);
+  if (Number.isNaN(ms)) return "—";
+  const diff = Date.now() - ms;
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;

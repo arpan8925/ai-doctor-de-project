@@ -1,7 +1,6 @@
 import type {
   DifferentialItem,
   PatientProfile,
-  RecentSession,
   VitalSeries,
 } from "./types";
 
@@ -56,33 +55,6 @@ export const MOCK_DIFFERENTIAL: DifferentialItem[] = [
   { name: "Sinusitis", icd10: "J32.9", probability: 0.11 },
   { name: "Meningitis", icd10: "G03.9", probability: 0.04 },
   { name: "Other", probability: 0.02 },
-];
-
-export const MOCK_RECENT_SESSIONS: RecentSession[] = [
-  {
-    id: "s-1",
-    patientName: "Asha Patel",
-    startedAt: Date.now() - 1000 * 60 * 60 * 2,
-    topDiagnosis: "Migraine",
-    status: "active",
-    score: 62,
-  },
-  {
-    id: "s-2",
-    patientName: "Rajesh Kumar",
-    startedAt: Date.now() - 1000 * 60 * 60 * 26,
-    topDiagnosis: "Pneumonia",
-    status: "awaiting_labs",
-    score: 78,
-  },
-  {
-    id: "s-3",
-    patientName: "Mira Shah",
-    startedAt: Date.now() - 1000 * 60 * 60 * 72,
-    topDiagnosis: "Type 2 Diabetes (newly suspected)",
-    status: "closed",
-    score: 96,
-  },
 ];
 
 export const QUICK_SYMPTOM_CHIPS = [

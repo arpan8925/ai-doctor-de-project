@@ -7,6 +7,7 @@ Each document is owned by a uid — get_session refuses cross-uid access.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from firebase_admin import firestore
@@ -15,10 +16,24 @@ from apps.api.firebase_app import get_app
 from apps.api.pdn.engine import PdnState
 from apps.api.pdn.red_flags import RULES
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
 
 def _db():
     get_app()
     return firestore.client()
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso(ts: Any) -> str | None:
+    if ts is None:
+        return None
+    if hasattr(ts, "isoformat"):
+        return ts.isoformat()
+    return None
 
 
 def _state_to_doc(state: PdnState, uid: str) -> dict[str, Any]:
@@ -67,7 +82,9 @@ def _doc_to_state(doc: dict[str, Any]) -> PdnState:
 def create_session(uid: str) -> PdnState:
     sid = str(uuid.uuid4())
     state = PdnState(session_id=sid)
-    _db().collection("sessions").document(sid).set(_state_to_doc(state, uid))
+    now = _now()
+    doc = {**_state_to_doc(state, uid), "created_at": now, "updated_at": now}
+    _db().collection("sessions").document(sid).set(doc)
     return state
 
 
@@ -82,6 +99,75 @@ def get_session(sid: str, uid: str) -> PdnState | None:
 
 
 def save_session(state: PdnState, uid: str) -> None:
+    # merge=True so we don't clobber created_at on later writes.
     _db().collection("sessions").document(state.session_id).set(
-        _state_to_doc(state, uid)
+        {**_state_to_doc(state, uid), "updated_at": _now()},
+        merge=True,
     )
+
+
+def _summarize(data: dict[str, Any]) -> dict[str, Any]:
+    """Reduce a session doc to what the sidebar needs."""
+    state = _doc_to_state(data)
+
+    # Title: top-candidate name if we have a differential; otherwise the first
+    # user message, truncated; otherwise "New consult".
+    title: str
+    if state.candidates:
+        top_icd = max(state.candidates.items(), key=lambda kv: kv[1])[0]
+        title = state.candidate_names.get(top_icd, top_icd)
+    else:
+        first_user = next(
+            (m.get("content", "") for m in state.transcript if m.get("role") == "user"),
+            "",
+        )
+        if first_user:
+            t = first_user.strip()
+            title = (t[:60] + "…") if len(t) > 60 else t
+        else:
+            title = "New consult"
+
+    if state.ended:
+        status = "closed"
+    elif state.action() == "request_labs":
+        status = "awaiting_labs"
+    else:
+        status = "active"
+
+    return {
+        "id": state.session_id,
+        "title": title,
+        "status": status,
+        "score": state.score(),
+        "created_at": _iso(data.get("created_at")),
+        "updated_at": _iso(data.get("updated_at") or data.get("created_at")),
+    }
+
+
+def delete_session(sid: str, uid: str) -> bool:
+    """Remove a session document. Returns False if it doesn't exist or
+    isn't owned by `uid`. Caller is responsible for refusing if the
+    session still has unsettled cost."""
+    ref = _db().collection("sessions").document(sid)
+    snap = ref.get()
+    if not snap.exists:
+        return False
+    if (snap.to_dict() or {}).get("uid") != uid:
+        return False
+    ref.delete()
+    return True
+
+
+def list_sessions(uid: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Recent sessions for a user — newest first.
+
+    Single `where(uid==X)` + Python-side sort to avoid needing a composite
+    Firestore index. A user's session count stays small (one per consult).
+    """
+    q = _db().collection("sessions").where("uid", "==", uid)
+    docs = [doc.to_dict() or {} for doc in q.stream()]
+    docs.sort(
+        key=lambda d: d.get("updated_at") or d.get("created_at") or _EPOCH,
+        reverse=True,
+    )
+    return [_summarize(d) for d in docs[:limit]]

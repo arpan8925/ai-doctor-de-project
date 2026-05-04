@@ -256,6 +256,40 @@ input, textarea, select, button { font-family: inherit; color: inherit; }
   cursor: pointer;
 }
 .recent-item:hover { border-color: var(--border-strong); }
+.recent-item.is-clickable { cursor: pointer; }
+.recent-item.is-active { border-color: var(--accent); background: var(--surface); }
+.recent-empty {
+  font-size: 12px; color: var(--text-muted);
+  padding: 10px; text-align: center;
+  border: 1px dashed var(--border); border-radius: 10px;
+}
+.recent-foot { display: flex; align-items: center; gap: 8px; }
+.recent-actions { margin-left: auto; display: flex; gap: 4px; opacity: 0; transition: opacity 120ms; }
+.recent-item:hover .recent-actions,
+.recent-item:focus-within .recent-actions { opacity: 1; }
+.recent-action {
+  display: grid; place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.recent-action:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong); }
+.recent-action:disabled { cursor: not-allowed; opacity: 0.4; }
+.recent-action.delete:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+
+.wallet-notice {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff7ed; border: 1px solid #fdba74; color: #9a3412;
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 13px; font-weight: 500;
+}
+.wallet-notice-x {
+  margin-left: auto; background: transparent; border: 0; cursor: pointer;
+  font-size: 18px; line-height: 1; color: inherit; padding: 0 4px;
+}
 .recent-line { display: flex; justify-content: space-between; align-items: center; }
 .recent-line strong { font-size: 13px; }
 .recent-status {

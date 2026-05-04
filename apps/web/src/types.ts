@@ -46,11 +46,11 @@ export type VitalSeries = {
 
 export type RecentSession = {
   id: string;
-  patientName: string;
-  startedAt: number;
-  topDiagnosis: string;
+  title: string;
   status: "active" | "awaiting_labs" | "closed";
   score: number;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 export type PatientProfile = {

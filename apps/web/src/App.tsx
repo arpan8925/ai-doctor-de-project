@@ -18,6 +18,7 @@ import { Wallet } from "./Wallet";
 import { useAuth } from "./useAuth";
 import { useChat } from "./useChat";
 import { useProfile, type Profile } from "./useProfile";
+import { InsufficientBalance, useSessions, type UseSessionsResult } from "./useSessions";
 import { formatPaise, useWallet, type UseWalletResult } from "./useWallet";
 
 function ChatPage({
@@ -29,6 +30,9 @@ function ChatPage({
   profile,
   userPhone,
   wallet,
+  sessionsHook,
+  onCloseSession,
+  onDeleteSession,
 }: {
   getToken: () => Promise<string>;
   page: Page;
@@ -38,8 +42,17 @@ function ChatPage({
   profile: Profile;
   userPhone: string | null;
   wallet: UseWalletResult;
+  sessionsHook: UseSessionsResult;
+  onCloseSession: (id: string) => void;
+  onDeleteSession: (id: string) => void;
 }) {
   const chat = useChat(getToken);
+
+  // Refresh the recent-sessions list after every chat turn (and on mount)
+  // so the sidebar reflects the just-updated session.
+  useEffect(() => {
+    sessionsHook.refresh();
+  }, [chat.messages.length, chat.sessionId, sessionsHook.refresh]);
   const [seed, setSeed] = useState("");
   const messagesRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -81,6 +94,11 @@ function ChatPage({
           page={page}
           onNavigate={onNavigate}
           isAdmin={isAdmin}
+          sessions={sessionsHook.sessions}
+          sessionsLoading={sessionsHook.loading}
+          activeSessionId={chat.sessionId}
+          onCloseSession={onCloseSession}
+          onDeleteSession={onDeleteSession}
         />
 
         <section className="chat-panel">
@@ -185,8 +203,36 @@ function AppShell({
   onSignOut: () => void;
 }) {
   const [page, setPage] = useState<Page>("chat");
+  const [walletNotice, setWalletNotice] = useState<string | null>(null);
   const isAdmin = profile.role === "admin";
   const wallet = useWallet(getToken);
+  const sessionsHook = useSessions(getToken);
+
+  const handleCloseSession = async (id: string) => {
+    try {
+      await sessionsHook.closeSession(id);
+      await wallet.refresh();
+    } catch (e) {
+      if (e instanceof InsufficientBalance) {
+        const short = formatPaise(e.detail.shortfallPaise);
+        setWalletNotice(
+          `Top up ${short} or more to close that session — your balance is below its accumulated cost.`,
+        );
+        setPage("wallet");
+        return;
+      }
+      alert(e instanceof Error ? e.message : "Failed to close session");
+    }
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    if (!window.confirm("Delete this session permanently? This can't be undone.")) return;
+    try {
+      await sessionsHook.deleteSession(id);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to delete session");
+    }
+  };
 
   // Force non-admins off /admin if they somehow land there.
   useEffect(() => {
@@ -203,8 +249,15 @@ function AppShell({
         userName={profile.name}
         userPhone={userPhone}
         wallet={wallet}
+        sessionsHook={sessionsHook}
+        onCloseSession={handleCloseSession}
+        onDeleteSession={handleDeleteSession}
       >
-        <Wallet wallet={wallet} />
+        <Wallet
+          wallet={wallet}
+          notice={walletNotice}
+          onDismissNotice={() => setWalletNotice(null)}
+        />
       </PageShell>
     );
   }
@@ -218,6 +271,9 @@ function AppShell({
         userName={profile.name}
         userPhone={userPhone}
         wallet={wallet}
+        sessionsHook={sessionsHook}
+        onCloseSession={handleCloseSession}
+        onDeleteSession={handleDeleteSession}
       >
         <AdminPanel getToken={getToken} />
       </PageShell>
@@ -233,6 +289,9 @@ function AppShell({
       profile={profile}
       userPhone={userPhone}
       wallet={wallet}
+      sessionsHook={sessionsHook}
+      onCloseSession={handleCloseSession}
+      onDeleteSession={handleDeleteSession}
     />
   );
 }
@@ -245,6 +304,9 @@ function PageShell({
   userName,
   userPhone,
   wallet,
+  sessionsHook,
+  onCloseSession,
+  onDeleteSession,
   children,
 }: {
   page: Page;
@@ -254,6 +316,9 @@ function PageShell({
   userName?: string;
   userPhone?: string | null;
   wallet?: UseWalletResult;
+  sessionsHook?: UseSessionsResult;
+  onCloseSession?: (id: string) => void;
+  onDeleteSession?: (id: string) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -275,6 +340,10 @@ function PageShell({
           page={page}
           onNavigate={onNavigate}
           isAdmin={isAdmin}
+          sessions={sessionsHook?.sessions ?? []}
+          sessionsLoading={sessionsHook?.loading}
+          onCloseSession={onCloseSession}
+          onDeleteSession={onDeleteSession}
         />
         <section className="chat-panel page-section">{children}</section>
         <div className="right-rail-placeholder" />

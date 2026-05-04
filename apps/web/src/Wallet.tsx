@@ -4,7 +4,15 @@ import { formatPaise, formatTxnDate } from "./useWallet";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 2000];
 
-export function Wallet({ wallet }: { wallet: UseWalletResult }) {
+export function Wallet({
+  wallet,
+  notice,
+  onDismissNotice,
+}: {
+  wallet: UseWalletResult;
+  notice?: string | null;
+  onDismissNotice?: () => void;
+}) {
   const { state, loading, error, requestTopup } = wallet;
   const [amount, setAmount] = useState<number>(500);
   const [custom, setCustom] = useState<string>("");
@@ -46,6 +54,17 @@ export function Wallet({ wallet }: { wallet: UseWalletResult }) {
             <p className="page-sub">Top up using the test gateway. Each top-up requires admin approval before it credits your balance.</p>
           </div>
         </header>
+
+        {notice && (
+          <div className="wallet-notice">
+            <span>{notice}</span>
+            {onDismissNotice && (
+              <button className="wallet-notice-x" onClick={onDismissNotice} aria-label="Dismiss">
+                ×
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Balance card */}
         <section className="card balance-card">

@@ -19,7 +19,14 @@ from apps.api.auth import get_current_uid
 from apps.api.config import get_settings
 from apps.api.pdn.engine import step
 from apps.api.profile import ProfileIn, ProfileOut, get_profile, save_profile
-from apps.api.sessions import create_session, get_session, save_session
+from apps.api.pricing import usd_to_paise
+from apps.api.sessions import (
+    create_session,
+    delete_session,
+    get_session,
+    list_sessions,
+    save_session,
+)
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, debug=settings.debug)
@@ -65,6 +72,12 @@ def save_me(body: ProfileIn, uid: str = Depends(get_current_uid)) -> ProfileOut:
 
 class StartSessionResponse(BaseModel):
     session_id: str
+
+
+@app.get("/sessions")
+def get_my_sessions(uid: str = Depends(get_current_uid)) -> list[dict[str, Any]]:
+    """Recent consult sessions for the current user — for the sidebar."""
+    return list_sessions(uid)
 
 
 @app.post("/sessions", response_model=StartSessionResponse)
@@ -154,10 +167,32 @@ class EndSessionResponse(BaseModel):
 
 @app.post("/sessions/{session_id}/end", response_model=EndSessionResponse)
 def end_session(session_id: str, uid: str = Depends(get_current_uid)) -> EndSessionResponse:
-    """Manually end a session and settle the wallet. Idempotent."""
+    """Manually end a session and settle the wallet. Idempotent.
+
+    Hard paywall: if the user can't cover the accumulated cost, refuse with
+    402. The session stays open until they top up.
+    """
     state = get_session(session_id, uid)
     if state is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
+
+    settings = get_settings()
+    required = usd_to_paise(state.cost_usd, settings.inr_per_usd)
+    balance = wallet.get_balance(uid)
+
+    if not state.ended and required > 0 and balance < required:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "insufficient_balance",
+                "balance_paise": balance,
+                "required_paise": required,
+                "shortfall_paise": required - balance,
+                "session_id": session_id,
+                "message": "Top up your wallet to settle and close this session.",
+            },
+        )
+
     txn = wallet.settle_session(uid, session_id, state.cost_usd)
     state.ended = True
     save_session(state, uid)
@@ -166,6 +201,28 @@ def end_session(session_id: str, uid: str = Depends(get_current_uid)) -> EndSess
         cost_usd=state.cost_usd,
         debit_paise=int(txn["amount_paise"]) if txn else 0,
     )
+
+
+@app.delete("/sessions/{session_id}")
+def remove_session(session_id: str, uid: str = Depends(get_current_uid)) -> dict[str, Any]:
+    """Delete a session document. Refuses if the session is still active —
+    user must close (settle) it first.
+    """
+    state = get_session(session_id, uid)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Unknown session_id")
+    if not state.ended:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "session_not_closed",
+                "session_id": session_id,
+                "message": "Close (and pay for) this session before deleting it.",
+            },
+        )
+    if not delete_session(session_id, uid):
+        raise HTTPException(status_code=404, detail="Unknown session_id")
+    return {"deleted": True, "session_id": session_id}
 
 
 # ─── wallet ───────────────────────────────────────────────────────────
