@@ -158,14 +158,21 @@ def delete_session(sid: str, uid: str) -> bool:
     return True
 
 
+def _has_user_message(doc: dict[str, Any]) -> bool:
+    return any(m.get("role") == "user" for m in doc.get("transcript", []) or [])
+
+
 def list_sessions(uid: str, limit: int = 10) -> list[dict[str, Any]]:
     """Recent sessions for a user — newest first.
 
     Single `where(uid==X)` + Python-side sort to avoid needing a composite
     Firestore index. A user's session count stays small (one per consult).
+    Sessions with no user messages are hidden — they're either in-flight
+    or stale empties from older builds.
     """
     q = _db().collection("sessions").where("uid", "==", uid)
-    docs = [doc.to_dict() or {} for doc in q.stream()]
+    docs = [doc.to_dict() or {} for doc in q.stream() if doc.exists]
+    docs = [d for d in docs if _has_user_message(d)]
     docs.sort(
         key=lambda d: d.get("updated_at") or d.get("created_at") or _EPOCH,
         reverse=True,

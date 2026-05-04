@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { ChatResponse, DifferentialItem, Message, Attachment, RedFlag } from "./types";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "http://localhost:8000";
@@ -42,41 +42,48 @@ export function useChat(getToken: () => Promise<string>) {
   const [settled, setSettled] = useState(false);
   const [topupRequired, setTopupRequired] = useState(false);
 
-  const initialized = useRef(false);
+  // In-flight session-creation promise — guards against double-creation if
+  // the user sends two messages before the first POST /sessions returns.
+  const startingRef = useRef<Promise<string | null> | null>(null);
 
-  const startSession = useCallback(async () => {
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    if (sessionId) return sessionId;
+    if (startingRef.current) return startingRef.current;
     setError(null);
     setSettled(false);
     setCostUsd(0);
     setTopupRequired(false);
-    try {
-      const token = await getToken();
-      const r = await fetch(`${API_BASE}/sessions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (r.status === 402) {
-        setTopupRequired(true);
-        return;
+    startingRef.current = (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch(`${API_BASE}/sessions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (r.status === 402) {
+          setTopupRequired(true);
+          return null;
+        }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        setSessionId(d.session_id);
+        return d.session_id as string;
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(`Backend unreachable at ${API_BASE}: ${msg}`);
+        return null;
+      } finally {
+        startingRef.current = null;
       }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
-      setSessionId(d.session_id);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(`Backend unreachable at ${API_BASE}: ${msg}`);
-    }
-  }, [getToken]);
-
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    startSession();
-  }, [startSession]);
+    })();
+    return startingRef.current;
+  }, [sessionId, getToken]);
 
   const send = useCallback(
     async (text: string) => {
-      if (!sessionId || !text.trim()) return;
+      if (!text.trim()) return;
+      const sid = sessionId ?? (await ensureSession());
+      if (!sid) return;
       const trimmed = text.trim();
       const preview = clientPreviewFlag(trimmed);
       if (preview && !redFlag) setRedFlag(preview);
@@ -101,7 +108,7 @@ export function useChat(getToken: () => Promise<string>) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ session_id: sessionId, message: trimmed }),
+          body: JSON.stringify({ session_id: sid, message: trimmed }),
         });
         if (!res.ok) {
           const body = await res.text();
@@ -131,7 +138,7 @@ export function useChat(getToken: () => Promise<string>) {
         setBusy(false);
       }
     },
-    [sessionId, pendingAttachments, redFlag, getToken],
+    [sessionId, ensureSession, pendingAttachments, redFlag, getToken],
   );
 
   const endSession = useCallback(async () => {
@@ -185,9 +192,11 @@ export function useChat(getToken: () => Promise<string>) {
     setSessionId(null);
     setSettled(false);
     setCostUsd(0);
-    initialized.current = false;
-    startSession();
-  }, [sessionId, settled, getToken, startSession]);
+    setTopupRequired(false);
+    // No new session is created here — we'll create one lazily when the
+    // user sends their first message, so navigating around the app or
+    // clicking "New consult" doesn't litter Firestore with empty docs.
+  }, [sessionId, settled, getToken]);
 
   return {
     apiBase: API_BASE,
