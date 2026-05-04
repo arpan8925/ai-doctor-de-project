@@ -28,6 +28,7 @@ import {
   Zap,
 } from "./icons";
 import { formatPaise } from "./useWallet";
+import { useSpeechRecognition } from "./useSpeechRecognition";
 import {
   ClarificationGauge,
   DifferentialDonut,
@@ -410,8 +411,20 @@ export function Composer({
   defaultValue?: string;
 }) {
   const [text, setText] = useState(defaultValue);
+  const [interim, setInterim] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  const speech = useSpeechRecognition({
+    onFinal: (chunk) => {
+      setText((prev) => {
+        const sep = prev && !prev.endsWith(" ") ? " " : "";
+        return prev + sep + chunk.trim();
+      });
+      setInterim("");
+    },
+    onInterim: (chunk) => setInterim(chunk),
+  });
 
   useEffect(() => setText(defaultValue), [defaultValue]);
   useEffect(() => {
@@ -419,12 +432,14 @@ export function Composer({
     if (!ta) return;
     ta.style.height = "auto";
     ta.style.height = Math.min(ta.scrollHeight, 180) + "px";
-  }, [text]);
+  }, [text, interim]);
 
   function submit() {
     if (!text.trim() || busy) return;
+    if (speech.recording) speech.stop();
     onSend(text);
     setText("");
+    setInterim("");
   }
 
   return (
@@ -461,8 +476,12 @@ export function Composer({
           ref={taRef}
           className="composer-input"
           rows={1}
-          placeholder="Describe your symptoms… (e.g. headache and nausea for 2 days)"
-          value={text}
+          placeholder={
+            speech.recording
+              ? "Listening… speak naturally."
+              : "Describe your symptoms… (e.g. headache and nausea for 2 days)"
+          }
+          value={interim ? `${text}${text && !text.endsWith(" ") ? " " : ""}${interim}` : text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -473,9 +492,17 @@ export function Composer({
           disabled={busy}
         />
         <button
-          className="composer-icon"
-          aria-label="Voice (coming Week 11)"
-          title="Voice input — coming Week 11"
+          className={`composer-icon mic-btn ${speech.recording ? "recording" : ""}`}
+          aria-label={speech.recording ? "Stop voice input" : "Start voice input"}
+          title={
+            !speech.supported
+              ? "Speech recognition not supported in this browser"
+              : speech.recording
+              ? "Stop recording"
+              : "Hold a thought — speak instead"
+          }
+          onClick={speech.toggle}
+          disabled={!speech.supported || busy}
         >
           <Mic width={16} height={16} />
         </button>
@@ -485,7 +512,13 @@ export function Composer({
         </button>
       </div>
       <div className="composer-foot">
-        <span>Enter to send · Shift+Enter for newline</span>
+        <span>
+          {speech.recording
+            ? "Recording… click the mic again to stop."
+            : speech.error
+            ? speech.error
+            : "Enter to send · Shift+Enter for newline · Mic for voice"}
+        </span>
         <span className="legal">
           <ShieldCheck width={11} height={11} /> Encrypted in transit. Not stored after this session.
         </span>

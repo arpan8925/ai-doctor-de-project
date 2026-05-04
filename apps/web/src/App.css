@@ -526,6 +526,16 @@ input, textarea, select, button { font-family: inherit; color: inherit; }
   display: grid; place-items: center;
 }
 .composer-icon:hover { color: var(--accent); background: var(--surface); }
+.composer-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+.mic-btn.recording {
+  color: #fff; background: var(--danger);
+  animation: mic-pulse 1.4s ease-in-out infinite;
+}
+.mic-btn.recording:hover { color: #fff; background: var(--danger); }
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  50%      { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
 .composer-input {
   flex: 1;
   min-height: 36px; max-height: 180px;
