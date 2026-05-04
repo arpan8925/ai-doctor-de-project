@@ -87,13 +87,21 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     };
     rec.onerror = (e) => {
       // "no-speech" and "aborted" fire as part of normal stop — don't surface them.
-      if (e.error !== "no-speech" && e.error !== "aborted") {
-        setError(
-          e.error === "not-allowed"
-            ? "Microphone permission was denied."
-            : `Speech recognition error: ${e.error}`,
-        );
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setError("Microphone permission was denied. Allow it in the browser address bar and try again.");
+        return;
       }
+      if (e.error === "network") {
+        // The Web Speech API streams to Google's servers (speech.googleapis.com).
+        // Brave Shields and corporate firewalls block this even though the API
+        // reports as "supported". Tell the user what's actually wrong.
+        setError(
+          "Couldn't reach the speech service. If you're on Brave, lower Shields for this site, or use Chrome/Edge. Otherwise check your internet / VPN.",
+        );
+        return;
+      }
+      setError(`Speech recognition error: ${e.error}`);
     };
     rec.onend = () => {
       recRef.current = null;
