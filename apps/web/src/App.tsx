@@ -26,12 +26,16 @@ function ChatPage({
   onNavigate,
   onSignOut,
   isAdmin,
+  profile,
+  userPhone,
 }: {
   getToken: () => Promise<string>;
   page: Page;
   onNavigate: (p: Page) => void;
   onSignOut: () => void;
   isAdmin: boolean;
+  profile: Profile;
+  userPhone: string | null;
 }) {
   const chat = useChat(getToken);
   const [seed, setSeed] = useState("");
@@ -62,6 +66,8 @@ function ChatPage({
         busy={chat.busy}
         online={chat.sessionId !== null}
         onSignOut={onSignOut}
+        userName={profile.name}
+        userPhone={userPhone}
       />
 
       <main className="main">
@@ -95,7 +101,7 @@ function ChatPage({
             ) : (
               <>
                 {chat.messages.map((m) => (
-                  <MessageBubble key={m.id} m={m} />
+                  <MessageBubble key={m.id} m={m} userName={profile.name} />
                 ))}
                 {chat.busy && (
                   <div className="msg msg-ai">
@@ -148,6 +154,8 @@ function ChatPage({
           score={chat.score}
           action={chat.action}
           differential={chat.differential}
+          profile={profile}
+          userPhone={userPhone}
         />
       </main>
     </div>
@@ -162,10 +170,12 @@ function usdToPaise(usd: number): number {
 
 function AppShell({
   profile,
+  userPhone,
   getToken,
   onSignOut,
 }: {
   profile: Profile;
+  userPhone: string | null;
   getToken: () => Promise<string>;
   onSignOut: () => void;
 }) {
@@ -179,14 +189,28 @@ function AppShell({
 
   if (page === "wallet") {
     return (
-      <PageShell page={page} onNavigate={setPage} isAdmin={isAdmin} onSignOut={onSignOut}>
+      <PageShell
+        page={page}
+        onNavigate={setPage}
+        isAdmin={isAdmin}
+        onSignOut={onSignOut}
+        userName={profile.name}
+        userPhone={userPhone}
+      >
         <Wallet getToken={getToken} />
       </PageShell>
     );
   }
   if (page === "admin" && isAdmin) {
     return (
-      <PageShell page={page} onNavigate={setPage} isAdmin={isAdmin} onSignOut={onSignOut}>
+      <PageShell
+        page={page}
+        onNavigate={setPage}
+        isAdmin={isAdmin}
+        onSignOut={onSignOut}
+        userName={profile.name}
+        userPhone={userPhone}
+      >
         <AdminPanel getToken={getToken} />
       </PageShell>
     );
@@ -198,6 +222,8 @@ function AppShell({
       onNavigate={setPage}
       onSignOut={onSignOut}
       isAdmin={isAdmin}
+      profile={profile}
+      userPhone={userPhone}
     />
   );
 }
@@ -207,17 +233,21 @@ function PageShell({
   onNavigate,
   isAdmin,
   onSignOut,
+  userName,
+  userPhone,
   children,
 }: {
   page: Page;
   onNavigate: (p: Page) => void;
   isAdmin: boolean;
   onSignOut: () => void;
+  userName?: string;
+  userPhone?: string | null;
   children: React.ReactNode;
 }) {
   return (
     <div className="app">
-      <TopBar apiBase="" busy={false} online onSignOut={onSignOut} />
+      <TopBar apiBase="" busy={false} online onSignOut={onSignOut} userName={userName} userPhone={userPhone} />
       <main className="main">
         <Sidebar
           onNew={() => onNavigate("chat")}
@@ -235,9 +265,11 @@ function PageShell({
 function AuthenticatedApp({
   getToken,
   onSignOut,
+  userPhone,
 }: {
   getToken: () => Promise<string>;
   onSignOut: () => void;
+  userPhone: string | null;
 }) {
   const { profile, loading, saveProfile } = useProfile(getToken);
 
@@ -247,7 +279,7 @@ function AuthenticatedApp({
   if (!profile) {
     return <SetupWizard onComplete={saveProfile} />;
   }
-  return <AppShell profile={profile} getToken={getToken} onSignOut={onSignOut} />;
+  return <AppShell profile={profile} userPhone={userPhone} getToken={getToken} onSignOut={onSignOut} />;
 }
 
 export default function App() {
@@ -267,5 +299,5 @@ export default function App() {
       />
     );
   }
-  return <AuthenticatedApp getToken={getToken} onSignOut={signOut} />;
+  return <AuthenticatedApp getToken={getToken} onSignOut={signOut} userPhone={user.phoneNumber} />;
 }

@@ -11,6 +11,7 @@ import {
   Globe,
   Heart,
   Home,
+  LogOut,
   MessageSquare,
   Mic,
   Paperclip,
@@ -32,12 +33,15 @@ import {
 } from "./charts";
 import {
   BODY_REGIONS,
-  MOCK_PATIENT,
   MOCK_RECENT_SESSIONS,
   MOCK_VITALS,
   QUICK_SYMPTOM_CHIPS,
 } from "./mock";
 import type { Attachment, DifferentialItem, Message, RedFlag } from "./types";
+import type { Profile } from "./useProfile";
+
+const initial = (s: string | undefined | null) => (s && s.trim() ? s.trim().charAt(0).toUpperCase() : "U");
+const firstName = (s: string | undefined | null) => (s && s.trim() ? s.trim().split(/\s+/)[0] : "You");
 
 // ────────────────────────────── TopBar ──────────────────────────────
 
@@ -46,11 +50,15 @@ export function TopBar({
   busy,
   online,
   onSignOut,
+  userName,
+  userPhone,
 }: {
   apiBase: string;
   busy: boolean;
   online: boolean;
   onSignOut?: () => void;
+  userName?: string;
+  userPhone?: string | null;
 }) {
   const [locale, setLocale] = useState("EN");
   return (
@@ -91,9 +99,21 @@ export function TopBar({
           <span className="badge">2</span>
         </button>
 
-        <button className="profile" title={MOCK_PATIENT.name} onClick={onSignOut}>
-          <span className="avatar">{MOCK_PATIENT.name.charAt(0)}</span>
-          <span className="profile-name">{MOCK_PATIENT.name.split(" ")[0]}</span>
+        <div
+          className="profile"
+          title={`${userName ?? "Signed in"}${userPhone ? ` · ${userPhone}` : ""}`}
+        >
+          <span className="avatar">{initial(userName)}</span>
+          <span className="profile-name">{firstName(userName)}</span>
+        </div>
+
+        <button
+          className="icon-btn"
+          aria-label="Sign out"
+          title="Sign out"
+          onClick={onSignOut}
+        >
+          <LogOut width={16} height={16} />
         </button>
       </div>
     </header>
@@ -259,15 +279,15 @@ export function EmptyState({
 
 // ────────────────────────────── MessageBubble ───────────────────────
 
-export function MessageBubble({ m }: { m: Message }) {
+export function MessageBubble({ m, userName }: { m: Message; userName?: string }) {
   return (
     <div className={`msg msg-${m.role}`}>
       <div className="msg-avatar">
-        {m.role === "user" ? MOCK_PATIENT.name.charAt(0) : <Stethoscope width={14} height={14} />}
+        {m.role === "user" ? initial(userName) : <Stethoscope width={14} height={14} />}
       </div>
       <div className="msg-body">
         <div className="msg-meta">
-          <strong>{m.role === "user" ? "You" : "AI Doctor"}</strong>
+          <strong>{m.role === "user" ? firstName(userName) : "AI Doctor"}</strong>
           <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         </div>
         <div className={`msg-bubble ${m.role}`}>
@@ -429,15 +449,19 @@ export function RightRail({
   score,
   action,
   differential,
+  profile,
+  userPhone,
 }: {
   score: number;
   action: string;
   differential: DifferentialItem[];
+  profile?: Profile | null;
+  userPhone?: string | null;
 }) {
   const hasReal = differential.length > 0;
   return (
     <aside className="right-rail">
-      <PatientCard />
+      <PatientCard profile={profile} phone={userPhone} />
 
       <Card title="Differential" subtitle="Top candidate diagnoses" icon={<Brain width={14} height={14} />}>
         {hasReal ? (
@@ -506,18 +530,43 @@ function Card({
   );
 }
 
-function PatientCard() {
+function PatientCard({
+  profile,
+  phone,
+}: {
+  profile?: Profile | null;
+  phone?: string | null;
+}) {
+  if (!profile) {
+    return (
+      <section className="patient-card">
+        <div className="patient-avatar">{initial(phone ?? undefined)}</div>
+        <div className="patient-info">
+          <strong>{phone ?? "Guest"}</strong>
+          <span>Profile not set up yet</span>
+        </div>
+      </section>
+    );
+  }
+  const allergies = profile.allergies.filter((a) => a.trim());
   return (
     <section className="patient-card">
-      <div className="patient-avatar">{MOCK_PATIENT.name.charAt(0)}</div>
+      <div className="patient-avatar">{initial(profile.name)}</div>
       <div className="patient-info">
-        <strong>{MOCK_PATIENT.name}</strong>
+        <strong>{profile.name}</strong>
         <span>
-          {MOCK_PATIENT.age}y · {MOCK_PATIENT.sex} · {MOCK_PATIENT.locale}
+          {profile.age}y · {profile.sex}
+          {phone ? ` · ${phone}` : ""}
         </span>
         <div className="patient-tags">
-          <span className="tag tag-warn">⚠ {MOCK_PATIENT.allergies[0]} allergy</span>
-          {MOCK_PATIENT.watchLinked && <span className="tag tag-ok">⌚ Watch linked</span>}
+          {allergies.length > 0 ? (
+            <span className="tag tag-warn">
+              ⚠ {allergies[0]}
+              {allergies.length > 1 ? ` +${allergies.length - 1}` : ""} allergy
+            </span>
+          ) : (
+            <span className="tag tag-ok">No known allergies</span>
+          )}
         </div>
       </div>
     </section>

@@ -8,15 +8,42 @@ status — no balance change.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any
 
 from fastapi import Depends, HTTPException
-from firebase_admin import firestore
+from firebase_admin import auth as fb_auth, firestore
 from google.cloud.firestore_v1 import transactional
 
 from apps.api.auth import get_current_uid
 from apps.api.firebase_app import get_app
 from apps.api.wallet import _serialize_txn
+
+# ─── Hardcoded admin allowlist (dev-only) ─────────────────────────────
+# Add your phone number in E.164 format ("+91" + 10 digits, no spaces).
+# Anyone signing in with one of these numbers is automatically promoted
+# to `role: "admin"` on the next /me read or save — no env var, no
+# manual Firestore edit. Not for production.
+ADMIN_PHONES: set[str] = {
+    "+917069736489",  # ← replace with your phone number
+}
+
+
+@lru_cache(maxsize=512)
+def _phone_for_uid(uid: str) -> str | None:
+    """Look up the Firebase Auth phone for a uid. Cached per-process."""
+    get_app()
+    try:
+        return fb_auth.get_user(uid).phone_number
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def is_hardcoded_admin(uid: str) -> bool:
+    if not ADMIN_PHONES:
+        return False
+    phone = _phone_for_uid(uid)
+    return phone is not None and phone in ADMIN_PHONES
 
 
 def _db():
@@ -29,6 +56,8 @@ def _now() -> datetime:
 
 
 def is_admin(uid: str) -> bool:
+    if is_hardcoded_admin(uid):
+        return True
     snap = _db().collection("users").document(uid).get()
     if not snap.exists:
         return False

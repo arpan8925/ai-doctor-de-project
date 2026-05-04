@@ -7,6 +7,7 @@ from typing import Any
 from firebase_admin import firestore
 from pydantic import BaseModel, Field
 
+from apps.api.admin import is_hardcoded_admin
 from apps.api.firebase_app import get_app
 
 
@@ -28,11 +29,24 @@ def _col():
     return firestore.client().collection("users")
 
 
+def _resolve_role(uid: str, current: str | None) -> str:
+    """Hardcoded admin allowlist wins over whatever's stored."""
+    if is_hardcoded_admin(uid):
+        return "admin"
+    return current or "user"
+
+
 def get_profile(uid: str) -> dict[str, Any] | None:
-    snap = _col().document(uid).get()
+    ref = _col().document(uid)
+    snap = ref.get()
     if not snap.exists:
         return None
-    return snap.to_dict()
+    data = snap.to_dict() or {}
+    resolved = _resolve_role(uid, data.get("role"))
+    if resolved != data.get("role"):
+        ref.set({"role": resolved}, merge=True)
+        data["role"] = resolved
+    return data
 
 
 def save_profile(uid: str, data: dict[str, Any]) -> None:
@@ -45,7 +59,7 @@ def save_profile(uid: str, data: dict[str, Any]) -> None:
         "onboarded": True,
         # Seed money & role on first save; preserve on later edits.
         "balance_paise": int(existing.get("balance_paise", 0)),
-        "role": existing.get("role", "user"),
+        "role": _resolve_role(uid, existing.get("role")),
         **data,
     }
     ref.set(payload, merge=True)
