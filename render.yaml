@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ai-doctor-api
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini/gemini-2.0-flash
+      - key: THESYS_API_KEY
+        sync: false
+      - key: THESYS_API_BASE
+        value: https://api.thesys.dev/v1/embed
+      - key: THESYS_MODEL
+        value: c1/anthropic/claude-3.5-sonnet/v-20241022
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DEBUG
+        value: "false"

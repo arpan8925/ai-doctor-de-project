@@ -23,13 +23,20 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", description="Optional OpenAI alternative")
     anthropic_api_key: str = Field(default="", description="Optional Anthropic alternative")
 
-    cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # Comma-separated allowed origins. Pydantic's list-from-env wants JSON, so we
+    # take a string and split — friendlier for Render's plain-text env editor.
+    cors_origins_raw: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        alias="CORS_ORIGINS",
     )
 
     firebase_service_account: Path = Field(
         default_factory=lambda: ROOT_DIR / "apps" / "api" / "firebase-service-account.json",
-        description="Path to Firebase service account JSON",
+        description="Path to Firebase service account JSON (used in local dev).",
+    )
+    firebase_service_account_json: str = Field(
+        default="",
+        description="Inline Firebase service-account JSON. Preferred in hosted envs.",
     )
 
     inr_per_usd: float = Field(
@@ -38,6 +45,10 @@ class Settings(BaseSettings):
     )
     topup_min_paise: int = Field(default=1000, description="Minimum top-up = ₹10")
     topup_max_paise: int = Field(default=10_00_000, description="Maximum top-up = ₹10,000")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
 
 @lru_cache(maxsize=1)
